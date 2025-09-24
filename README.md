@@ -1,6 +1,6 @@
 # 🕵️ AI/ML Real-Time OpenSearch + Comprehend — Twitter Sentiment Insights
 
-![Architecture Diagram](./assets/architecture.png)
+![Architecture Diagram](./assets/asset_view.png)
 
 > **Goal:** Investigate public sentiment by automatically streaming text from sources like the [X (Twitter) API](https://developer.x.com/en/docs/x-api) into [Amazon Comprehend](https://docs.aws.amazon.com/comprehend/latest/dg/how-sentiment.html) for classification, and make those enriched insights searchable in [Amazon OpenSearch Service](https://docs.aws.amazon.com/opensearch-service/). Access is managed securely with [Amazon Cognito](https://docs.aws.amazon.com/cognito/).
 > Fully deployed and managed with **Terraform**, this design is built to handle **high-volume, real-time** streaming for investigative, analytic, or monitoring use cases.
