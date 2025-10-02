@@ -5,7 +5,7 @@
 > Investigative, real-time sentiment analytics across streaming social content **and** batch survey data. Text is enriched with [Amazon Comprehend](https://docs.aws.amazon.com/comprehend/latest/dg/how-sentiment.html) and made searchable in [Amazon OpenSearch Service](https://docs.aws.amazon.com/opensearch-service/) with secure access via [Amazon Cognito](https://docs.aws.amazon.com/cognito/). Infrastructure is automated with **Terraform / CloudFormation** for repeatability and scale.
 
 ---
-
+##
 ## Overview
 
 This repository contains **two end‑to‑end AWS pipelines** showcasing near real-time and event-driven sentiment analysis patterns:
