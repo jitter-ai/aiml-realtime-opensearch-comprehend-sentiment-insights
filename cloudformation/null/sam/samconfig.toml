@@ -1,0 +1,59 @@
+version = 0.1
+
+[default]
+[default.global.parameters]
+stack_name = "aos-sentiment-stack"
+template_file = "sam.yml"
+
+[default.build.parameters]
+cached = true
+parallel = true
+parameter_overrides = "Environment=prod"
+use_container = false  # Changed from true to false
+build_dir = ".aws-sam/build"
+
+[default.deploy.parameters]
+stack_name = "aos-sentiment-stack"
+s3_bucket = "my-sam-artifacts-bucket"
+s3_prefix = "aos-sentiment"
+capabilities = ["CAPABILITY_IAM", "CAPABILITY_NAMED_IAM"]
+region = "us-east-1"
+confirm_changeset = false
+fail_on_empty_changeset = false
+image_repositories = []
+profile = "xmas"
+tags = "project=aos-sentiment environment=default"
+parameter_overrides = [
+    "Environment=prod",
+    "MyAssetsBucketName=my-sam-artifacts-bucket",
+    "MyAssetsBucketPrefix=aos-sentiment"
+]
+
+[default.package.parameters]
+output_template_file = ".aws-sam/build/packaged.yaml"
+
+[default.sync.parameters]
+watch = true
+stack_name = "aos-sentiment-stack"
+template_file = "sam.yml"
+
+[default.local_start_api.parameters]
+warm_containers = "EAGER"
+docker_network = "aos-sentiment-network"
+
+[prod]
+[prod.deploy.parameters]
+stack_name = "aos-sentiment-stack-prod"
+s3_bucket = "my-sam-artifacts-bucket"
+s3_prefix = "aos-sentiment-prod"
+capabilities = ["CAPABILITY_IAM", "CAPABILITY_NAMED_IAM"]
+region = "us-east-1"
+confirm_changeset = true
+fail_on_empty_changeset = false
+parameter_overrides = [
+    "Environment=prod",
+    "MyAssetsBucketName=my-sam-artifacts-bucket",
+    "MyAssetsBucketPrefix=aos-sentiment-prod"
+]
+profile = "xmas"
+tags = "project=aos-sentiment environment=prod"
