@@ -1,72 +1,143 @@
-# 🕵️ AI/ML Real-Time OpenSearch + Comprehend — Twitter Sentiment Insights
+# 🕵️ AI/ML Real-Time OpenSearch + Comprehend — Sentiment Insights
 
 ![Architecture Diagram](./assets/asset_view.png)
 
-> **Goal:** Investigate public sentiment by automatically streaming text from sources like the [X (Twitter) API](https://developer.x.com/en/docs/x-api) into [Amazon Comprehend](https://docs.aws.amazon.com/comprehend/latest/dg/how-sentiment.html) for classification, and make those enriched insights searchable in [Amazon OpenSearch Service](https://docs.aws.amazon.com/opensearch-service/). Access is managed securely with [Amazon Cognito](https://docs.aws.amazon.com/cognito/).
-> Fully deployed and managed with **Terraform**, this design is built to handle **high-volume, real-time** streaming for investigative, analytic, or monitoring use cases.
+> Investigative, real-time sentiment analytics across streaming social content **and** batch survey data. Text is enriched with [Amazon Comprehend](https://docs.aws.amazon.com/comprehend/latest/dg/how-sentiment.html) and made searchable in [Amazon OpenSearch Service](https://docs.aws.amazon.com/opensearch-service/) with secure access via [Amazon Cognito](https://docs.aws.amazon.com/cognito/). Infrastructure is automated with **Terraform / CloudFormation** for repeatability and scale.
 
 ---
 
-## Why this matters
+## Overview
 
-* **Investigative analysis:** Track public conversations around events, brands, or topics in real time.
-* **Sentiment at scale:** Thousands of tweets can be analyzed automatically, tagged as *Positive, Negative, Neutral, or Mixed*.
-* **Actionable insights:** Search and filter inside OpenSearch Dashboards to reveal public mood shifts or anomalies.
-* **Enterprise-ready:** Everything is repeatable and scalable with Terraform.
+This repository contains **two end‑to‑end AWS pipelines** showcasing near real-time and event-driven sentiment analysis patterns:
 
----
+| Pipeline | Purpose | Data Source | Processing Mode | Output |
+|----------|---------|-------------|-----------------|--------|
+| Twitter Sentiment Insights | Monitor live public conversations (hashtags / keywords) | X (Twitter) API streaming (and optional S3 batch) | Real-time streaming (Kinesis) | Indexed documents + dashboards in OpenSearch |
+| Survey Sentiment (Workshop) | Analyze uploaded survey feedback (CSV) | Amazon S3 uploads | Event-driven (S3 -> SQS -> Lambdas / Step Functions) | Enriched searchable sentiment records |
 
-## How it works
-
-1. **Collect tweets**
-
-   * Connect to the [X (Twitter) API](https://developer.x.com/en/docs/x-api) to stream tweets by keyword, hashtag, or account.
-   * Optionally, drop CSV/JSON datasets into [Amazon S3](https://docs.aws.amazon.com/s3/) for batch analysis.
-
-2. **Trigger & Processing**
-
-   * [Amazon EventBridge](https://docs.aws.amazon.com/eventbridge/) routes new events.
-   * [AWS Lambda](https://docs.aws.amazon.com/lambda/) functions clean up tweets and send text to Comprehend.
-
-3. **Sentiment Analysis**
-
-   * [Amazon Comprehend](https://docs.aws.amazon.com/comprehend/latest/dg/how-sentiment.html) classifies each tweet’s tone (Positive, Negative, Neutral, Mixed) and adds confidence scores.
-
-4. **Streaming & Delivery**
-
-   * Results flow through [Amazon Kinesis Data Streams](https://docs.aws.amazon.com/streams/latest/dev/) and into [Amazon Kinesis Data Firehose](https://docs.aws.amazon.com/firehose/) for delivery to OpenSearch.
-
-5. **Search & Dashboards**
-
-   * Enriched tweets are indexed in [Amazon OpenSearch Service](https://docs.aws.amazon.com/opensearch-service/).
-   * Analysts or investigators log in via [Amazon Cognito](https://docs.aws.amazon.com/cognito/) to access secure dashboards.
-
-6. **Monitoring & Security**
-
-   * [Amazon CloudWatch Logs](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/) track pipeline activity.
-   * [AWS IAM](https://docs.aws.amazon.com/iam/) ensures controlled permissions.
-   * KMS can be used to encrypt sensitive data.
+Both pipelines highlight:
+* Real-time or near real-time **sentiment enrichment**
+* **Scalable ingestion** (streaming + batch)
+* **Secure dashboard access** with Cognito
+* **Infrastructure-as-Code** for reproducibility
 
 ---
 
-## Key Benefits
+## 🔎 Why this matters
 
-* 🕵️ **Investigative lens:** Monitor emerging narratives or disinformation campaigns in real time.
-* 📊 **Dashboard-ready:** Easily pivot between topics, hashtags, and sentiment distributions.
-* ⚡ **High-volume scale:** From a few hundred tweets to continuous firehose ingestion.
-* 🛠 **Terraform-based:** Full deployment automation ensures repeatability and consistency.
-
----
-
-## Demo scenario
-
-* **Investigative example:** Stream tweets with the hashtag `#AIRegulation`. Watch as the pipeline processes them through Comprehend, indexes the results, and displays the changing tone of the conversation in OpenSearch dashboards.
-* Analysts can filter by sentiment, timeframe, or keyword to surface trends and anomalies.
+* **Investigative analysis:** Monitor social narratives or internal/customer feedback continuously.
+* **Sentiment at scale:** Thousands of text records automatically classified (Positive, Negative, Neutral, Mixed) with confidence scores.
+* **Actionable insights:** OpenSearch Dashboards enable filtering by topic, timeframe, or sentiment distribution.
+* **Enterprise-ready:** IAM, Cognito, CloudWatch, and optional KMS integration.
 
 ---
 
-**Repository name suggestion:**
-`aiml-realtime-opensearch-comprehend-sentiment-insights`
+## ⚙️ Architecture Summaries
 
-**GitHub description (short):**
-Investigative real-time AI/ML pipeline: stream tweets via X (Twitter) API, classify sentiment with Amazon Comprehend, and search insights in OpenSearch dashboards. Terraform-managed for scale.
+### Pipeline 1: Twitter Streaming (Real-Time)
+
+1. **Collect Tweets** – Stream by hashtag / keyword via [X (Twitter) API](https://developer.x.com/en/docs/x-api) or optionally drop historical CSV/JSON into S3.
+2. **Process & Classify** – Lambda functions normalize text and call Comprehend for sentiment.
+3. **Stream & Deliver** – Kinesis Data Streams → Kinesis Data Firehose deliver enriched items to OpenSearch.
+4. **Search & Visualize** – OpenSearch + Cognito-authenticated dashboards.
+5. **Observe & Secure** – CloudWatch Logs, IAM, optional KMS.
+
+### Pipeline 2: Survey Data (Workshop)
+
+1. **Data Ingestion** – Upload CSV survey files to S3 (e.g., `reinvent-survey-data-2023-<account-id>`).
+2. **Event Orchestration** – S3 notifications → SQS; EventBridge + Step Functions coordinate OpenSearch index setup and Cognito users.
+3. **Sentiment Analysis** – Lambda functions batch or record-wise call Comprehend and enrich payloads.
+4. **Index & Search** – Firehose (or direct client) writes enriched documents to OpenSearch for exploration.
+
+---
+
+## 🛠 AWS Services Used
+
+| Service | Role |
+|---------|------|
+| Amazon S3 | Input datasets (batch tweets or survey CSVs) |
+| Amazon SQS | Buffer layer for S3 event notifications |
+| Amazon EventBridge | Event routing / orchestration |
+| AWS Lambda | Text processing, Comprehend integration, index/bootstrap logic |
+| Amazon Comprehend | Sentiment classification |
+| Amazon Kinesis Data Streams | Real-time ingestion (Twitter pipeline) |
+| Amazon Kinesis Data Firehose | Delivery into OpenSearch |
+| Amazon OpenSearch Service | Search + dashboards |
+| Amazon Cognito | Secure analyst access |
+| AWS Step Functions | Workflow coordination (survey pipeline setup) |
+| Amazon CloudWatch | Centralized logging / metrics |
+| AWS KMS (optional) | Encryption of data at rest / secrets |
+
+---
+
+## ✅ Key Features
+
+* Pre-packaged Lambda deployment artifacts (zip from S3).
+* Terraform / CloudFormation automation for rapid provisioning.
+* Multi-ingestion model (streaming + batch).
+* Cognito-secured dashboards (ready for RBAC extension).
+* Extensible design (plug in entity extraction, topic modeling, additional ML transforms).
+
+---
+
+## 🚀 Quick Start
+
+```bash
+# Clone the repo
+git clone https://github.com/yourusername/aiml-realtime-opensearch-comprehend-sentiment-insights.git
+cd aiml-realtime-opensearch-comprehend-sentiment-insights
+
+# (Python) Install local helper dependencies
+pip install -r requirements.txt
+
+# Initialize & deploy (Terraform example)
+terraform init
+terraform apply
+```
+
+Then:
+
+1. Configure X (Twitter) API credentials (if using streaming pipeline) and start ingestion.
+2. Or upload a survey CSV to the configured S3 bucket.
+3. Open the provisioned OpenSearch Dashboards URL, authenticate via Cognito, and explore indices (filter by sentiment, timeframe, hashtag, keyword, or survey dimension).
+
+---
+
+## 📈 Demo Scenarios
+
+* **Twitter Insight** – Track `#AIRegulation` tweets in real time; visualize shifts in Positive vs. Negative tone.
+* **Survey Insight** – Upload customer feedback CSV; quickly segment by sentiment to prioritize follow-up.
+
+---
+
+## 🔮 Coming Soon / Enhancements
+
+* Pre-built OpenSearch dashboard JSON import (visualizations & index patterns)
+* Fine-grained OpenSearch access control (role-based dashboards)
+* Additional ML enrichments: entity extraction, key phrase, topic modeling
+* Optional Glue/Athena lake export & historical trend backfill
+
+---
+
+## 👥 Credits
+
+This project merges two AWS sentiment analysis reference architectures (streaming + survey) for practitioners (data engineers, architects, analysts) exploring real-time NLP patterns on AWS.
+
+---
+
+## Meta
+
+**Repository name:** `aiml-realtime-opensearch-comprehend-sentiment-insights`
+
+**GitHub description (short):** Investigative real-time AI/ML pipelines: stream tweets via X (Twitter) API or ingest survey CSVs, classify sentiment with Amazon Comprehend, search enriched insights in OpenSearch dashboards. Terraform/CloudFormation-managed for scale.
+
+---
+
+### Next Step Decision
+
+Would you prefer to:
+
+1. Keep this unified README (current state), or
+2. Split deeper documentation into `pipelines/twitter/README.md` and `pipelines/survey/README.md` while keeping this root as an overview?
+
+Let me know your preference and I can scaffold the per-pipeline docs accordingly.
