@@ -1,0 +1,17 @@
+---
+description: Python-specific coding standards — type hints, docstrings, naming
+globs:
+alwaysApply: true
+---
+
+# Python Standards
+
+- Use type hints for all function parameters and returns.
+- Every class and public method must have a docstring.
+- Prefer f-strings over `.format()` or `%`.
+- UTF-8 for all text I/O.
+- Prefer deterministic behavior and explicit returns; avoid hidden side-effects.
+- No `try/except` blocks unless explicitly required by the user. The one allowed exception: `except KeyboardInterrupt` for clean Ctrl+C exit.
+- Validate imports with `try/except ImportError` with a clear message.
+- Variable names must be descriptive — no single letters except loop counters.
+- Constants in UPPER_SNAKE_CASE.

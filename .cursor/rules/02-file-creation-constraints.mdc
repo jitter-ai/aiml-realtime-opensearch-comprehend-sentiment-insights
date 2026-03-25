@@ -1,0 +1,12 @@
+---
+description: Hard constraints on file and folder creation
+globs:
+alwaysApply: true
+---
+
+# File and Folder Creation Constraints
+
+- Do not create new files or folders automatically. Only modify the explicitly targeted, existing file(s) I mention.
+- Single exception: if a Python workflow needs `requirements.txt` and it is missing, create it and only that file. Otherwise ask before creating anything.
+- Never create copies like `file_fixed.py` — modify originals unless I ask for new files.
+- Temporary files may be created only for testing and must be deleted immediately. Temp files must not appear in READMEs.
