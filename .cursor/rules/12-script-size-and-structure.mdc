@@ -1,0 +1,33 @@
+---
+description: Script file size limit — 750 lines max, break into scripts/ folder with a main coordinator
+globs:
+alwaysApply: true
+---
+
+# Script Size and Structure
+
+- No single Python script may exceed **750 lines**. If it does, refactor immediately.
+- When a script grows beyond the limit, break it into a `scripts/` folder with a `main.py` coordinator that imports and orchestrates the sub-modules.
+
+## Folder Layout After Breakup
+
+```
+scripts/
+  __init__.py
+  main.py          # coordinator — imports and calls sub-modules
+  feature_a.py
+  feature_b.py
+  utils.py
+```
+
+- `main.py` is the single entry point; it delegates to sub-modules by responsibility.
+- Each sub-module should be independently testable and focused on one concern.
+- The parent Makefile target should call `scripts/main.py`, not individual sub-modules.
+
+## How to Check
+
+Before committing, verify no script exceeds the limit:
+
+```bash
+find scripts/ -name '*.py' -exec awk 'END{if(NR>750) print FILENAME, NR" lines"}' {} \;
+```

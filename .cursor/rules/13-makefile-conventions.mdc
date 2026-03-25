@@ -1,0 +1,39 @@
+---
+description: Makefile conventions — coordinator role, .mk sub-makefiles, scripts/ delegation
+globs:
+alwaysApply: true
+---
+
+# Makefile Conventions
+
+- The root `Makefile` is a **coordinator only** — it delegates to Python scripts in `scripts/`. It must not contain complex logic, loops, or inline Python.
+- Each make target should call one Python script entry point (e.g., `$(PY) scripts/main.py`).
+
+## Sub-Makefiles
+
+- When the project needs additional make targets that don't belong in the root `Makefile`, create sub-makefiles with the **`.mk`** extension (e.g., `docker.mk`, `testing.mk`).
+- Include sub-makefiles from the root `Makefile` with:
+
+```makefile
+include docker.mk
+include testing.mk
+```
+
+- Sub-makefiles follow the same coordinator pattern: thin targets that delegate to scripts.
+
+## Structure Example
+
+```
+Makefile            # root coordinator — includes .mk files, delegates to scripts/
+docker.mk           # sub-makefile for Docker targets
+scripts/
+  main.py           # primary entry point
+  help.py           # interactive help menu
+  management/
+    docker_manager.py
+```
+
+## Naming
+
+- Root file: `Makefile` (capital M, no extension).
+- Sub-makefiles: `<topic>.mk` (lowercase, descriptive name).

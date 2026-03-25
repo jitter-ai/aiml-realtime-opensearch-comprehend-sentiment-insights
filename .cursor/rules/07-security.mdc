@@ -1,0 +1,13 @@
+---
+description: Security rules — no hardcoded secrets, confirmation before destructive actions
+globs:
+alwaysApply: true
+---
+
+# Security
+
+- Never hardcode credentials, secrets, tokens, API keys, or passwords — use the 1Password CLI (`op read`) at runtime. See rule 15 for the standard pattern.
+- Never commit `.env` files, kubeconfig, or credential files.
+- Do not execute external commands or destructive actions without explicit user confirmation.
+- When a task is complex or risky: propose a plan, then wait for confirmation before changing multiple files.
+- For storage interactions (MongoDB, MinIO, Redis, etc.), include brief data lineage notes in comments.

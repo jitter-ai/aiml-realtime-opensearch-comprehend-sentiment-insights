@@ -1,0 +1,40 @@
+---
+description: Code organization — classes, nesting limits, module structure
+globs:
+alwaysApply: true
+---
+
+# Code Structure
+
+- All logic must be inside classes — no procedural top-level scripts. Organize classes by responsibility; avoid God-classes.
+- All variables must be declared at the top of the file for visibility.
+- Keep indentation, spacing, and naming conventions consistent.
+- No nested logic deeper than three levels.
+- Consolidate helpers into coherent class methods; avoid many near-duplicate helpers.
+- Keep functions under 50 lines; if longer, refactor.
+- All modules must follow this structure:
+  1. Module docstring
+  2. Imports
+  3. Global constants
+  4. Orchestrator class
+  5. Supporting classes
+
+## Preferred
+
+```python
+class Processor:
+    """Processes data from a given source."""
+
+    def __init__(self, source: str) -> None:
+        self.source = source
+
+    def run(self) -> None:
+        print(f"Running on {self.source}")
+```
+
+## Avoid
+
+```python
+def run_pipeline(source):
+    print(f"Running on {source}")
+```

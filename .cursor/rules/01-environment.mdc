@@ -1,0 +1,22 @@
+---
+description: Execution environment — WSL Ubuntu 24.04, Linux paths, no PowerShell
+globs:
+alwaysApply: true
+---
+
+# Environment and Execution
+
+- All scripts run inside **WSL Ubuntu 24.04 LTS** on Windows 11.
+- Always use WSL (Ubuntu/Linux) commands. Never PowerShell in any form (powershell, pwsh, scripts, or aliases).
+- All commands assume Linux/Ubuntu WSL semantics and POSIX paths (`/home/...`), never Windows paths (`C:\...`).
+- Shell examples must be in bash.
+- Never use raw `os.system`, `exec()`, or unrestricted `subprocess` calls unless explicitly required.
+- Prefer Linux-compatible modules and paths.
+
+## WSL + 1Password CLI
+
+- In WSL, **always use `op.exe`** (the Windows CLI) instead of `op` (the Linux CLI).
+- `op.exe` reaches the Windows 1Password desktop app for PIN/biometric unlock. The Linux `op` binary has no accounts registered and cannot authenticate via the desktop app.
+- Detect WSL by checking `/proc/version` for `microsoft`.
+- Resolve `op.exe` in order: `shutil.which("op.exe")` → `cmd.exe /c where op.exe` → fail with install instructions.
+- Install Windows CLI from WSL: `winget.exe install AgileBits.1Password.CLI`
