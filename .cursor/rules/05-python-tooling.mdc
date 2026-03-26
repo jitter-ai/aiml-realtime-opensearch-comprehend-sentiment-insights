@@ -25,48 +25,6 @@ console = Console()
 
 Every menu MUST include a **Back** option (returns to previous menu) and an **Exit** option (terminates immediately).
 
-### Group Related Items into Submenus
-
-Always group related menu items into their own submenu rather than listing them flat in a parent menu. The main menu should have **one entry per category** that opens a submenu.
-
-- If two or more items share a category (Data, GitHub, Infrastructure, etc.), they belong in a submenu.
-- Each submenu handler loops until the user picks Back or Exit, returning `"back"` or `"quit"`.
-- Use `Separator` lines inside submenus to organize sections visually.
-
-```python
-def github_submenu() -> str:
-    """GitHub operations submenu. Returns 'back' or 'quit'."""
-    while True:
-        choice = questionary.select(
-            "GitHub",
-            choices=[
-                Choice("◆ Sync rules to all target repos", value="sync"),
-                Choice("◆ Merge sync PRs across org repos", value="merge"),
-                Separator("─────────────────────────────"),
-                Choice("↩ Back", value="back"),
-                Choice("✕ Exit", value="exit"),
-            ],
-            style=MENU_STYLE,
-            instruction="(Ctrl+C to cancel)",
-        ).ask()
-
-        if choice is None or choice == "exit":
-            return "quit"
-        if choice == "back":
-            return "back"
-
-        # dispatch choice …
-        console.input("\n  Press Enter to continue...")
-```
-
-In the parent menu, dispatch and handle the return value:
-
-```python
-result = github_submenu()
-if result == "quit":
-    return 0
-```
-
 ### Standard Style
 
 Apply a consistent `Style` across all menus for a polished look:
