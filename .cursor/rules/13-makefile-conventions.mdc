@@ -6,8 +6,40 @@ alwaysApply: true
 
 # Makefile Conventions
 
-- The root `Makefile` is a **coordinator only** — it delegates to Python scripts in `scripts/`. It must not contain complex logic, loops, or inline Python.
+## Execution Chain: Makefile → Python Script → Menu
+
+The standard execution flow is always:
+
+```
+make <target>  →  python scripts/main.py  →  questionary menu (if interactive)
+```
+
+- **Makefile** is the entry point the user runs from the terminal.
+- **Python scripts** contain all logic, organized in `scripts/`.
+- **Menus** (questionary) live inside the Python scripts, never in Makefiles.
+
+The user never calls Python scripts directly — always through `make`.
+
+## Root Makefile — Coordinator Only
+
+- The root `Makefile` is a **thin coordinator** — it delegates to Python scripts in `scripts/`. It must not contain complex logic, loops, or inline Python.
 - Each make target should call one Python script entry point (e.g., `$(PY) scripts/main.py`).
+- Keep targets short: one or two lines max.
+
+```makefile
+PY := python3
+
+.PHONY: menu sync help
+
+menu:
+	$(PY) scripts/main.py
+
+sync:
+	$(PY) scripts/sync_rules.py
+
+help:
+	$(PY) scripts/help.py
+```
 
 ## Sub-Makefiles
 
@@ -27,11 +59,23 @@ include testing.mk
 Makefile            # root coordinator — includes .mk files, delegates to scripts/
 docker.mk           # sub-makefile for Docker targets
 scripts/
-  main.py           # primary entry point
-  help.py           # interactive help menu
+  __init__.py
+  main.py           # primary entry point (called by `make menu`)
+  help.py           # help menu (called by `make help`)
+  sync_rules.py     # rule sync (called by `make sync`)
   management/
     docker_manager.py
 ```
+
+## What Goes Where
+
+| Concern | Location | NOT in |
+|---|---|---|
+| Entry point / target name | `Makefile` or `.mk` | Python script |
+| Business logic | `scripts/*.py` classes | Makefile |
+| Interactive menus | `scripts/*.py` via questionary | Makefile |
+| Environment vars (non-secret) | `Makefile` exports | Hardcoded in Python |
+| Secret retrieval | Python via `op_helper.py` | Makefile |
 
 ## Naming
 

@@ -22,7 +22,7 @@ Before editing **any** `.py` file, re-read and apply **all** of the following ru
 4. `06-dependencies.mdc` — verify latest PyPI versions, update requirements.txt, add comment for each dep
 5. `07-security.mdc` — no hardcoded secrets; use `op read` via rule 15
 6. `15-secrets-onepassword.mdc` — full op auth pattern (account list → whoami → signin)
-7. `12-script-size-and-structure.mdc` — no script over 750 lines; break into modules if needed
+7. `12-script-size-and-structure.mdc` — no script over 700 lines; break into modules if needed
 8. `10-documentation.mdc` — module docstring, update README if behavior changes
 
 Non-compliance in any of these rules must be fixed **before** the edit is considered complete.
