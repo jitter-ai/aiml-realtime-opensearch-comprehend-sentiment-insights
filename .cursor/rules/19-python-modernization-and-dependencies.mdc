@@ -1,0 +1,25 @@
+---
+description: Proactive Python dependency refresh and modernization when editing Python
+globs: "**/*.py"
+alwaysApply: false
+---
+
+# Python modernization and dependencies
+
+When you touch Python code or dependency files, treat **dependency hygiene** as part of the change (extends `06-dependencies.mdc`).
+
+## Dependency review
+
+- Before adding imports, check **PyPI** for current compatible versions; prefer pins that match the repo’s Python version.
+- When editing a module, glance at **direct deps** it relies on: note outdated pins, security advisories, or replacements if the change intersects that stack.
+- Keep **one** canonical `requirements.txt` (or the repo’s chosen manifest); every new or version-bumped line needs a **short end-of-line comment** explaining why.
+
+## Modern idioms (when editing nearby code)
+
+- Prefer `pathlib`, explicit UTF-8, modern typing (`list[str]`, etc.).
+- Avoid drive-by refactors; only modernize code you are already changing unless the user asks for a broad pass (use slash command `python-optimization-audit`).
+
+## Compatibility
+
+- Do not upgrade major versions without calling out **breaking changes** and validation steps.
+- If unsure, state the assumption and the smallest safe bump.

@@ -11,8 +11,9 @@ alwaysApply: true
 - Prefer f-strings over `.format()` or `%`.
 - UTF-8 for all text I/O.
 - Prefer deterministic behavior and explicit returns; avoid hidden side-effects.
-- No `try/except` blocks unless explicitly required by the user. The one allowed exception: `except KeyboardInterrupt` for clean Ctrl+C exit.
-- Validate imports with `try/except ImportError` with a clear message.
+- **Integration boundaries only:** `try/except` is allowed at **integration boundaries** (filesystem, network, subprocess, external SDKs, I/O). Use chaining (`raise ... from`), structured context, and domain errors per `20-python-errors-and-observability.mdc`. Do **not** wrap large internal logic in catch-all handlers.
+- **Always allowed:** `except KeyboardInterrupt` for clean Ctrl+C exit; `try/except ImportError` for optional dependencies with a clear user-facing message.
+- For other logic: avoid `try/except` unless the user asks for it or the boundary rule above applies.
 - Variable names must be descriptive — no single letters except loop counters.
 - Constants in UPPER_SNAKE_CASE.
 
@@ -45,6 +46,7 @@ logger = logging.getLogger(__name__)
 
 ### Rules
 
+- Boundary `try/except` blocks that handle real failures should log at **INFO** (or structured equivalent per `20-python-errors-and-observability.mdc`) before mapping or re-raising where appropriate.
 - Use the `logging` stdlib module, not `print()` or `console.print()` for debug output.
 - Log messages must include enough context to diagnose without a debugger (method name, relevant variable values).
 - Once the fix is confirmed working, offer to remove or reduce the logging level — don't leave `DEBUG` logging permanently.
