@@ -23,7 +23,8 @@ There is a **hard cap of 50 rule files** in `cursor-rules/`. Before creating a n
 | Linting / formatting tweak | `04-python-standards.mdc` |
 | New secret or auth pattern | `15-secrets-onepassword.mdc` or `07-security.mdc` |
 | Git hook or commit convention | `08-git-conventions.mdc` |
-| Docker / Redis / infra change | create only if no infra rule exists yet |
+| Docker / Redis / infra ops | create only if no infra rule exists yet |
+| Terraform / IaC modules and layout | `18-terraform-standards.mdc` |
 | Makefile target convention | `13-makefile-conventions.mdc` |
 | Script size / modularization | `12-script-size-and-structure.mdc` |
 

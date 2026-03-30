@@ -1,0 +1,75 @@
+---
+description: Terraform, AWS provider, and CDK for Terraform — modularity, file sizing, and official documentation
+globs: "**/*.tf,**/*.tfvars,**/cdktf.json"
+alwaysApply: false
+---
+
+# Terraform and infrastructure-as-code (IaC)
+
+Dedicated rule for **Terraform (HCL)**, **AWS**-oriented layouts, and **CDK for Terraform (CDKTF)**. Do not treat this as generic “any IaC”; **AWS CDK** (CloudFormation) is a different toolchain — use AWS CDK docs when the repo is CDK, not Terraform.
+
+## When this applies
+
+- Editing or authoring `.tf`, `.tfvars`, or CDKTF stacks (`cdktf.json`, generated `cdktf` output, or CDKTF TypeScript/Python/Java/C#/Go sources in the same project as `cdktf.json`).
+- Answering design questions where the stack is clearly Terraform- or CDKTF-based.
+
+## Documentation (prefer current provider and product docs)
+
+Before proposing APIs, attributes, or module structure, align with official references (fetch or cite as needed for the exact provider/version in use):
+
+| Area | Primary references |
+|------|-------------------|
+| Terraform core (language, modules, state, workspaces) | [Terraform documentation](https://developer.hashicorp.com/terraform/docs) |
+| AWS provider resources and arguments | [hashicorp/aws provider registry docs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs) |
+| Reusable modules | [Terraform Registry modules](https://registry.terraform.io/browse/modules) — prefer existing maintained modules when they fit |
+| CDK for Terraform (TypeScript/Python/etc. generating Terraform) | [CDKTF documentation](https://developer.hashicorp.com/terraform/cdktf) |
+
+If the repository pins a **Terraform or provider version**, follow that version’s schema and upgrade guides, not outdated examples.
+
+## Default: everything goes through modules
+
+- **Root** composes backends, providers, and module calls. Avoid a “flat” root with dozens of resources unless the repo is explicitly a tiny sandbox.
+- **One domain per module** (or nested module): e.g. **IAM roles/policies** live in their own module; networking, data stores, and compute are separate modules.
+- Compose shared patterns (standard tags, naming, remote state) via **a small shared submodule** or consistent `locals` in a single `locals.tf` **within each module**, not copy-paste across the tree.
+
+## AWS-oriented layout (typical)
+
+Use a layout similar to (adapt names to the repo):
+
+```
+envs/<env>/           # or accounts/<account>/
+  main.tf             # backend, providers, module blocks
+  variables.tf
+  outputs.tf
+modules/
+  iam/
+  network/
+  data/
+  compute/
+```
+
+Secrets and credentials: **never** hardcode; use environment-appropriate patterns (e.g. variables marked `sensitive`, external secret stores, or CI — consistent with project and `07-security.mdc` / `15-secrets-onepassword.mdc`).
+
+## File and module sizing (HCL)
+
+Treat **line counts** as signals to split, not rigid law — prefer **clear boundaries** (IAM vs S3 vs Lambda) over hitting a number exactly.
+
+| Signal | Action |
+|--------|--------|
+| **Many services** (roughly **more than 10** distinct services or major components in one place) | Split into **separate modules** and/or separate root-level concerns; avoid one directory that “does everything.” |
+| **Single `.tf` file ~300+ lines** of **resource/locals** (excluding blank/comments if you want a looser read) | **Split** into additional `.tf` files in the same module by concern (e.g. `iam.tf`, `s3.tf`, `lambda.tf`, `monitoring.tf`) or extract a **submodule**. |
+| **Same concern approaching ~500+ lines** in one file | **Must** break up: additional `.tf` files **or** a dedicated submodule for that concern. |
+| **High cardinality** (e.g. **many** S3 buckets, Lambdas, or similar — “dozens to hundreds+”) | Use **`for_each` / `count`** with maps/lists; split **per resource family** into separate `.tf` files **inside the module** (e.g. `s3_buckets.tf`, `lambda_functions.tf`); if patterns repeat across environments, move the pattern into a **nested module** with a small API. |
+
+Keep **`variables.tf`**, **`outputs.tf`**, and **`versions.tf`** (or top-level `terraform { ... }` blocks) **thin and stable**; push bulk resources into named `.tf` files by domain.
+
+## CDK for Terraform (CDKTF)
+
+- Mirror the **same modularity**: generate or organize constructs so Terraform output maps to **reusable stacks/modules**, not one giant stack by default.
+- Prefer **construct classes** (per language) that match the same domain boundaries as Terraform modules (IAM, network, data, compute).
+- When unsure of class names or APIs, use **CDKTF docs** and the **generated provider bindings** for the pinned version.
+
+## Interactions with other rules
+
+- **Security and secrets**: follow `07-security.mdc` and `15-secrets-onepassword.mdc` for sensitive values; never commit state files or secrets.
+- **AWS operational scripts** (Python/Make) in **`internal_apis/aws`-style repos**: `17-aws-scripts.mdc` remains the authority for script layout; this rule governs **Terraform/CDKTF** in those or any repo.
