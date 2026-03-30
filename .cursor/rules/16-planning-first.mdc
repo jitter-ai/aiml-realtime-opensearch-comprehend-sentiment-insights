@@ -1,0 +1,51 @@
+---
+description: Plan before implementation when scope is multi-file, ambiguous, or integration-heavy — phased handoff to the agent
+globs:
+alwaysApply: true
+---
+
+# Planning before implementation
+
+Agents execute well but infer intent poorly. **Default to a short plan first** whenever work is more than a trivial, isolated edit so the repo stays globally coherent (data flow, integrations, and boundaries stay explicit).
+
+## When to plan first (mandatory)
+
+If **any** of these apply, **do not write implementation code or run implementing commands** until the user confirms the plan in this chat (unless they explicitly waive planning in the same turn — e.g. “skip the plan, just fix line 42”):
+
+- The change likely touches **more than one file** or will **ripple** beyond one module.
+- **New or changed data flow** — pipelines, state, storage, caching, dedup, batching, ordering, or cross-stage contracts.
+- Touches an **existing integration** — external APIs, webhooks, auth, cloud services, CI/CD, or shared libraries consumed elsewhere.
+- **Ambiguous scope** — unclear inputs, outputs, failure modes, or what must **not** change.
+- **High rework cost** if wrong — migrations, deletes, public APIs, or multi-service behavior.
+
+**Only skip planning** when the user clearly requests a **single-file, isolated fix** with **no** meaningful downstream effects (e.g. typo, one obvious bug in one function with no API or data contract change).
+
+## What “plan” must include (in order)
+
+1. **Restate the goal** — what “done” means in plain language.
+2. **Affected surfaces** — files, modules, functions, services, configs, workflows; call out anything uncertain as “TBD / assumption.”
+3. **Assumptions** — list them explicitly; do not bury guesses in code.
+4. **Phased approach** — phases with **checkpoints** (what completes each phase, main risks, how to validate).
+5. **Confirmation** — ask whether to proceed before implementation.
+
+If the user pastes a plan or spec from elsewhere (e.g. Claude Code), treat it as the **specification** and execute it as stated unless `00-control-and-precedence.mdc` says otherwise.
+
+## On-demand prompt (paste to force plan-only)
+
+When the user sends this (or a close paraphrase), stay in **plan-only mode** until they explicitly approve:
+
+> Before you write any code, stop and plan. Tell me every file and system this touches, your assumptions, and your proposed phases. Do not implement anything until I confirm the plan.
+
+## Natural-language triggers (same as plan-only)
+
+Treat these like the on-demand prompt above (plan first, no implementation until confirmed):
+
+- “Plan before you code.” / “Plan this first.”
+- “Switch to plan mode.” / “Spec only — don’t implement yet.”
+- “What does this touch?” when they want a map before edits.
+- “Break this into phases” / “Give me checkpoints before you change files.”
+
+## What not to do
+
+- Do not start multi-file or integration work from a vague one-liner without a plan.
+- Do not substitute a quick code spike for an agreed contract when scope is multi-file or data-flow-heavy.
