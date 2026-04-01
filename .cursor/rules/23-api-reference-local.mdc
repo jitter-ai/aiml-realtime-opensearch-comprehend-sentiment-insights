@@ -1,0 +1,28 @@
+---
+description: Cache external API and SDK reference docs in-repo (Markdown) — prefer local reference over repeated live doc fetches
+globs: "**/*.py,**/*.ts,**/*.js,**/*.tf"
+alwaysApply: false
+---
+
+# Local API reference documentation
+
+When implementing or debugging against an **external API, SDK, or HTTP surface** (REST, GraphQL, vendor CLI behavior, etc.), treat **official reference material as a repo-local artifact**, not something to re-fetch on every question.
+
+## Default workflow
+
+1. **Check first** — Before opening live docs or repeated web lookups, see if this repo already has a snapshot under a stable path (e.g. `docs/reference/`, `reference/`, or project-specific `docs/api/`).
+2. **If missing or stale** — **Download or export once** (OpenAPI/Swagger JSON/YAML, key endpoint pages, changelog, versioned "API reference" sections) and save as **Markdown** (`.md`) with a **clear filename** that includes **vendor + API name + version or date** (e.g. `stripe-api-2024-11-20.acacia.md`, `kubernetes-api-v1.30-overview.md`).
+3. **Use the local file** as the primary source when writing code, types, and tests; point code comments or README to the path when helpful.
+4. **Refresh deliberately** when the integration bumps API/SDK version or behavior changes — replace or add a dated sibling file rather than silently overwriting history.
+
+## Format and hygiene
+
+- Prefer **Markdown** in-repo; if the source is only HTML/PDF, convert or paste the **relevant sections** into Markdown rather than relying on fragile live links.
+- Add a short **header block** at the top of each file: source URL, retrieval date, and API/SDK version if known.
+- **Do not** paste secrets, tokens, or customer data into reference files.
+- For very large specs, a **single OpenAPI file** plus a small `README.md` in the same folder is acceptable instead of one giant prose doc.
+
+## Precedence
+
+- This does **not** override `00-control-and-precedence.mdc`: obtain new material when needed, then **store it locally** so later work uses the snapshot.
+- If the user forbids adding files or gives a pasted spec as source of truth, follow their instruction for that turn.

@@ -1,0 +1,13 @@
+---
+description: Version control restrictions — no auto-commit, conventional commits
+globs:
+alwaysApply: true
+---
+
+# Git Conventions
+
+- Never run git write operations (`git add`, `git commit`, `git push`) unless I explicitly instruct so in the current chat turn.
+- Do not stage, commit, or push changes automatically.
+- If a workflow normally requires a commit, show guidance only and annotate: `# Deviation: commit/push skipped per repo policy`.
+- Conventional commits when I do ask: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `ci:`, `test:`.
+- Never commit generated files, build artifacts, or `node_modules`.

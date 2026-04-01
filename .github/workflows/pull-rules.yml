@@ -1,4 +1,4 @@
-# Synced from coding_rules shared-workflows. Do not edit in target repos.
+# Synced from coding_rules cursor/shared-workflows. Do not edit in target repos.
 # Pulls latest Cursor rules, skills, commands, hooks from coding_rules and commits directly.
 # Uses REPS_TOKEN (fine-grained PAT with Contents read on coding_rules).
 name: Pull global rules
@@ -36,14 +36,14 @@ jobs:
           mkdir -p .cursor/rules .cursor/skills .cursor/commands .cursor/agents .cursor/hooks
 
           rm -f .cursor/rules/*.mdc
-          for f in _source/cursor-rules/*.mdc; do
+          for f in _source/cursor/rules/*.mdc; do
             [ -f "$f" ] && cp "$f" .cursor/rules/
           done
 
           rm -rf .cursor/skills && mkdir -p .cursor/skills
-          if [ -d _source/cursor-skills ]; then
-            find _source/cursor-skills -name "SKILL.md" | while IFS= read -r f; do
-              rel="${f#_source/cursor-skills/}"
+          if [ -d _source/cursor/skills ]; then
+            find _source/cursor/skills -name "SKILL.md" | while IFS= read -r f; do
+              rel="${f#_source/cursor/skills/}"
               dir=".cursor/skills/$(dirname "$rel")"
               mkdir -p "$dir"
               cp "$f" ".cursor/skills/$rel"
@@ -51,17 +51,17 @@ jobs:
           fi
 
           rm -f .cursor/commands/*.md
-          for f in _source/cursor-commands/*.md; do
+          for f in _source/cursor/commands/*.md; do
             [ -f "$f" ] && cp "$f" .cursor/commands/
           done; true
 
           rm -f .cursor/agents/*.md
-          for f in _source/cursor-agents/*.md; do
+          for f in _source/cursor/agents/*.md; do
             [ -f "$f" ] && cp "$f" .cursor/agents/
           done; true
 
           rm -f .cursor/hooks/*.yml
-          for f in _source/cursor-hooks/*.yml; do
+          for f in _source/cursor/hooks/*.yml; do
             [ -f "$f" ] && cp "$f" .cursor/hooks/
           done; true
 

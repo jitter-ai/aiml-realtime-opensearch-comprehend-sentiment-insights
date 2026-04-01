@@ -1,0 +1,86 @@
+---
+description: AWS infrastructure-as-code strategy — CloudFormation vs Terraform, Jinja2 templating for complex stacks
+globs: "**/*.yaml,**/*.yml,**/*.tf,**/*.tfvars"
+alwaysApply: false
+---
+
+# AWS IaC and Service Deployment
+
+This rule governs **infrastructure definitions** (stacks, modules, templates). For **AWS Python scripting conventions, authentication, and Makefile layout**, see `17-aws-scripts.mdc`.
+
+## When to use CloudFormation
+
+Prefer CloudFormation for:
+
+- **One-off** or narrow stacks (single S3 bucket, a DynamoDB table, an IAM role).
+- Projects where the AWS account already relies on CloudFormation and adding Terraform state management is overhead.
+- Stacks with **few services** where drift detection and in-stack state are sufficient.
+
+### Deploy pattern
+
+```bash
+aws cloudformation deploy \
+  --template-file infra/cloudformation/my-stack.yaml \
+  --stack-name my-stack-dev \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --profile "$PROFILE" \
+  --region "$REGION" \
+  --parameter-overrides Environment=dev
+```
+
+### Template conventions
+
+- Use **YAML** (not JSON) for readability.
+- Always include `Parameters` for environment-specific values (bucket name suffixes, tags, KMS key ARNs).
+- Always include `Outputs` that export resource identifiers downstream consumers need.
+- Enable **Block Public Access**, **encryption**, and **least-privilege IAM** by default on every resource that supports them.
+- Place templates under `infra/cloudformation/` with descriptive filenames (e.g. `sync-tracking-bucket.yaml`, `api-gateway.yaml`).
+
+## When to use Terraform
+
+Prefer Terraform for:
+
+- **Multi-service platforms** with cross-resource dependencies that benefit from a dependency graph and plan/apply workflow.
+- **Team or org modules** where reusable `.tf` modules and remote state (S3 + DynamoDB locking) are standard.
+- Projects that already have a Terraform root and adding CloudFormation stacks would fragment state.
+
+### Conventions
+
+- Remote state in S3 with DynamoDB locking.
+- Separate root modules per environment or use workspaces — document the choice in the repo's `PLAN.md`.
+- Place Terraform roots under `infra/terraform/` (e.g. `infra/terraform/prod/`, `infra/terraform/modules/`).
+
+## Jinja2 for complex CloudFormation
+
+When a CloudFormation template becomes unwieldy due to repeated blocks, environment matrices, or conditional resource sets, use **Jinja2** (`jinja2` Python library) to generate the final YAML before deploying.
+
+- Source templates use `.yaml.j2` extension and live alongside rendered output.
+- Render with a small Python script under `scripts/` (called via `make`), producing deterministic YAML.
+- Commit **either** the source `.j2` + generator script **or** the rendered `.yaml` — not both, unless the repo convention says otherwise.
+- Use standard Jinja2 syntax (`{{ }}`, `{% %}`), **not** Django template tags.
+
+### Render pattern
+
+```python
+from pathlib import Path
+from jinja2 import Environment, FileSystemLoader
+
+env = Environment(loader=FileSystemLoader("infra/cloudformation"))
+template = env.get_template("my-stack.yaml.j2")
+rendered = template.render(environment="prod", replicas=3)
+Path("infra/cloudformation/my-stack.yaml").write_text(rendered, encoding="utf-8")
+```
+
+## Authentication
+
+All IaC deployments follow the same auth rules as `17-aws-scripts.mdc`:
+
+- **Named profiles** (`--profile`) or **IAM roles** — never hardcoded credentials.
+- Profile names that are sensitive go through 1Password per `15-secrets-onepassword.mdc`.
+
+## Rules
+
+- Do not mix CloudFormation and Terraform in the same stack/module boundary. Pick one per logical unit.
+- Every template or module must be deployable from a `Makefile` target or CI step — never ad-hoc CLI only.
+- Tag all resources with at minimum `Environment` and `Project`.
+- Review `17-aws-scripts.mdc` for Python script layout when writing helper scripts that wrap `aws cloudformation` or `terraform` commands.
