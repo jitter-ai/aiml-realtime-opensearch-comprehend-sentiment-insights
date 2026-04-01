@@ -1,0 +1,40 @@
+---
+description: Integration-boundary errors, chaining, structlog/Sentry/Rich
+globs: "**/*.py"
+alwaysApply: false
+---
+
+# Python errors and observability
+
+## Where `try/except` belongs
+
+Use explicit `try/except` **only at integration boundaries**: filesystem, network, subprocess, external SDKs, and similar I/O. Do **not** wrap large internal logic blocks in catch-alls.
+
+## Patterns (required)
+
+- Never bare `except:` or bare `except Exception:` without re-raising or mapping to a domain error with a clear reason.
+- No silent `pass` in `except` except after logging or handling with documented intent.
+- Use **`raise ... from exc`** (or re-raise) so `__cause__` / tracebacks stay debuggable.
+- Map low-level errors to **small domain exceptions** at module boundaries when it clarifies callers.
+
+## Structured context
+
+Attach **structured fields** (ids, paths, operation names) so logs are searchable — use **`structlog`** for JSON/context-heavy services, or **`logging.LoggerAdapter`** / structured `extra=` with stdlib `logging` when adding deps is undesirable.
+
+## Human-facing CLI
+
+Per `05-python-tooling.mdc`, prefer **Rich** for user-visible output; use **Rich tracebacks** / clear messages for operator-facing failures. Reserve `logging` for diagnostic trails (see `04-python-standards.mdc`).
+
+## Optional third-party (choose deliberately)
+
+| Library | When |
+|--------|------|
+| `structlog` | Services, pipelines, need correlated key/value context |
+| `sentry-sdk` | Deployed / long-running apps needing aggregated error tracking |
+| `tenacity` | **Transient** I/O only; document retry policy; avoid blanket retries |
+
+Do **not** default to `loguru` in org code unless the repo standardizes on it — it overlaps with the stdlib logging escalation rules in `04-python-standards.mdc`.
+
+## Debugging escalation
+
+Boundary catches that participate in a bugfix should still follow the **INFO → DEBUG** escalation table in `04-python-standards.mdc` on subsequent fix attempts.

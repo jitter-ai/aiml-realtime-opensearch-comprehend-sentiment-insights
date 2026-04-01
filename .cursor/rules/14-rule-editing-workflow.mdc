@@ -1,0 +1,88 @@
+---
+description: Rule management — consolidate by subject, 50-rule cap, validate, mirror
+globs: cursor/rules/*.mdc
+alwaysApply: false
+---
+
+# Rule Editing Workflow
+
+## 0. Before Creating a New Rule — Consolidate First
+
+There is a **hard cap of 50 rule files** in `cursor/rules/`. Before creating a new `.mdc` file, you MUST:
+
+1. **List the existing rules** and read their descriptions.
+2. **Find a rule that already covers the same subject area.** Subject areas are broad — Python tooling, security, git, performance, documentation, infrastructure, etc.
+3. **If a matching rule exists, extend it** by adding a new section or bullet points. Do NOT create a separate file.
+4. **Only create a new file** when the topic is genuinely new and does not fit into any existing rule.
+
+### If the user says "update a rule"
+
+Treat "update a rule" as an instruction to **modify an existing rule first**.
+
+- Default path: update the closest existing rule by subject.
+- Do not create a new rule file just because the wording is new.
+- New rule file is **last resort only** when no existing rule can reasonably absorb the change.
+- If a new rule is truly required, state why consolidation was not possible.
+
+### Subject-area mapping (examples)
+
+|Topic|Belongs in|
+|---|---|
+|New Python library requirement|`05-python-tooling.mdc`|
+|Linting / formatting tweak|`04-python-standards.mdc`|
+|New secret or auth pattern|`15-secrets-onepassword.mdc` or `07-security.mdc`|
+|Git hook or commit convention|`08-git-conventions.mdc`|
+|Docker / Redis / infra ops|create only if no infra rule exists yet|
+|Terraform / IaC modules and layout|`18-terraform.mdc`|
+|Makefile target convention|`13-makefile-conventions.mdc`|
+|Script size / modularization|`12-script-size-and-structure.mdc`|
+
+### Why
+
+- Fewer files = faster Cursor context loading.
+- Grouped rules are easier to keep consistent and non-contradictory.
+- A sprawl of tiny single-topic files becomes unmanageable past ~20 rules.
+
+## 1. Validate All Rules
+
+After creating or editing any `.mdc` file in `cursor/rules/`, check every file for:
+
+- **Frontmatter present** — must start with `---` and contain `description`, `globs`, and `alwaysApply`.
+- **Description is non-empty** — every rule needs a meaningful description.
+- **`alwaysApply`** is explicitly `true` or `false` (not missing).
+- **No duplicate filenames** — numbering prefix must be unique (e.g., `12-`, `13-`).
+- **Under 500 lines** — rules should be concise.
+- **Total count ≤ 50** — if the count exceeds 50, consolidate before proceeding.
+
+Quick validation command:
+
+```bash
+for f in cursor/rules/*.mdc; do
+  echo "--- $f ---"
+  head -6 "$f"
+  wc -l < "$f"
+  echo ""
+done
+```
+
+## 2. Run Mirror
+
+After validation passes, sync the source-of-truth folder to the live `.cursor/rules/` directory:
+
+```bash
+make mirror
+```
+
+This copies `cursor/rules/*.mdc` into `.cursor/rules/` so Cursor picks up the changes immediately.
+
+### Workspace parity (mandatory)
+
+Any time you create or update a rule under `cursor/rules/`, apply the same change to `.cursor/rules/` in the same task.
+
+- Do not leave source rules updated while workspace rules are stale.
+- If a bulk mirror target exists, use it.
+- If no mirror target exists, copy the changed rule file(s) directly into `.cursor/rules/`.
+
+## 3. Confirm
+
+Report how many rules were validated and mirrored, and the remaining headroom (e.g., "17 / 50 rules").

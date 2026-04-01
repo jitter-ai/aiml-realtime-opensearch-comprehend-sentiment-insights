@@ -1,0 +1,48 @@
+---
+description: README layout — no folder trees in READMEs; root vs sub-README roles and allowed patterns
+globs: "**/*.md"
+alwaysApply: false
+---
+
+# README conventions
+
+## No directory structure in READMEs
+
+Do **not** put **folder trees**, **filesystem diagrams**, or **directory listings** in any `README.md` or nested `README*.md`.
+
+**Avoid:**
+
+- ASCII or Unicode tree art (`├──`, `└──`, and similar)
+- Pasted output from `tree`, `find`, `ls -R`, or equivalent
+- Deep nested bullets whose main job is to copy the repo layout
+
+Those blocks rot immediately, duplicate what the repository already shows, and crowd out behavior, contracts, and how to run things.
+
+**Prefer instead:**
+
+- Short **prose** that names what matters (for example: "Python lives under `scripts/`; run workflows from the root `Makefile`.")
+- **Markdown links** to a few canonical files or folders when a path is essential
+- **Tables** for components (name, purpose, optional path column)—not an exhaustive map of every directory
+- **Single backticked paths** for one-off file references
+
+## Root `README.md`
+
+- States **what the project is** and how to **install, configure, and run** the main workflows.
+- Points to **`PLAN.md`** (and other design docs) for phased methodology; keeps procedural "how we build" out of duplication where `PLAN.md` is authoritative.
+- Uses prose and sparse links; never substitutes a tree for architecture.
+- **Diagram required (root only):** include **at least one** architecture or workflow diagram—relationships between components, data flow, or execution paths—not a folder tree.
+  - **Mermaid** (` ```mermaid ` …) is preferred where the host renders it (e.g. GitHub).
+  - **D2** is acceptable when viewers support it, or when a **rendered image** (e.g. SVG/PNG) produced from D2 is linked or embedded.
+  - **Python-authored diagrams** are acceptable when output is **committed** (SVG/PNG) and the root README **embeds or links** that asset; optionally point to the generator script under `scripts/` or `docs/` without pasting a filesystem tree.
+- **Sub-READMEs** do not require a diagram unless project conventions or the user say otherwise.
+
+## Sub-READMEs (e.g. `docs/`, package, or area-specific)
+
+- One **clear scope** per file (how to use that area, local conventions, APIs).
+- Stay **consistent** with the root README on commands, paths, and names; resolve conflicts rather than drifting.
+- Same rule: **no directory trees**—describe layout only as much as needed to follow the instructions.
+
+## When editing READMEs
+
+- If behavior or CLI changes, update the README in the same change set (see `10-documentation.mdc`).
+- Do not add new README files unless the user or existing repo conventions require them.
