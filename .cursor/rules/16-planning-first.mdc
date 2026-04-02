@@ -45,6 +45,10 @@ Treat these like the on-demand prompt above (plan first, no implementation until
 - “What does this touch?” when they want a map before edits.
 - “Break this into phases” / “Give me checkpoints before you change files.”
 
+## Architectural diagram ownership
+
+Substantial repo or use-case work should tie to an architectural picture. If no diagram exists for the area being changed, **add a D2 diagram** (`.d2` source under `diagrams/` plus a committed PNG or SVG render) as part of the design story, consistent with `24-readme-conventions.mdc`. The diagram does not need to be exhaustive — a minimal sketch of components and data flow is sufficient to anchor the plan.
+
 ## What not to do
 
 - Do not start multi-file or integration work from a vague one-liner without a plan.
