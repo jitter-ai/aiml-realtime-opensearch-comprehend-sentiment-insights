@@ -91,6 +91,20 @@ MENU_STYLE = Style([
 ])
 ```
 
+### Color Variation for Large Menus
+
+When a menu has **many options** (roughly 8+), use distinct `Separator` colors per section so users can visually scan groups at a glance. Define a palette of section colors and rotate through them:
+
+```python
+SECTION_COLORS = ["#00d7ff", "#ff8700", "#87d700", "#d75fff", "#ff5f87"]
+
+def colored_separator(label: str, index: int) -> Separator:
+    color = SECTION_COLORS[index % len(SECTION_COLORS)]
+    return Separator(f"── {label} ──")
+```
+
+Combine this with **distinct Unicode prefixes per section** (e.g. `◆` for primary actions, `⚙` for config, `⚠` for destructive) so color is not the only differentiator. For submenus with 10+ items, also consider printing a Rich-styled header via `console.print()` before calling `questionary.select()` to give additional visual context above the prompt.
+
 ### Menu Pattern
 
 Use `questionary.select()` with `Choice`, `Separator`, and the shared `MENU_STYLE`:

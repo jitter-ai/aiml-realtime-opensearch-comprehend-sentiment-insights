@@ -30,11 +30,14 @@ Those blocks rot immediately, duplicate what the repository already shows, and c
 - States **what the project is** and how to **install, configure, and run** the main workflows.
 - Points to **`PLAN.md`** (and other design docs) for phased methodology; keeps procedural "how we build" out of duplication where `PLAN.md` is authoritative.
 - Uses prose and sparse links; never substitutes a tree for architecture.
+- **Summary section required (root only):** add a `## Summary` near the top that states what the project is, who it is for, and links to the key entry points (setup, architecture, PLAN.md). A stranger on GitHub should orient in under a minute.
 - **Diagram required (root only):** include **at least one** architecture or workflow diagram—relationships between components, data flow, or execution paths—not a folder tree.
-  - **Mermaid** (` ```mermaid ` …) is preferred where the host renders it (e.g. GitHub).
-  - **D2** is acceptable when viewers support it, or when a **rendered image** (e.g. SVG/PNG) produced from D2 is linked or embedded.
+  - **D2** is the standard diagram language. Maintain `.d2` source files under `diagrams/` and **commit rendered PNG or SVG** alongside them. READMEs embed or link the rendered image (e.g. `![Architecture](diagrams/architecture.png)`). Include a regeneration command in the README or at the top of the `.d2` file.
+  - **Do not use Mermaid** in new or updated READMEs. Legacy Mermaid blocks may exist until migrated but should not be introduced.
   - **Python-authored diagrams** are acceptable when output is **committed** (SVG/PNG) and the root README **embeds or links** that asset; optionally point to the generator script under `scripts/` or `docs/` without pasting a filesystem tree.
-- **Sub-READMEs** do not require a diagram unless project conventions or the user say otherwise.
+- **Architecture before detail:** place the architecture diagram and summary **above** long setup instructions or implementation detail so readers see the big picture first.
+- **Sub-READMEs:** do not require a diagram by default, but any use-case or area README should **lead with an architecture sketch** (D2 source + committed render) when the area has meaningful component relationships. If the user has not provided one, authors produce a minimal D2 diagram rather than skipping architecture.
+- **Public GitHub readability:** write every README as if the repo is public. Use scannable headings, link to setup and run instructions early, place one diagram near the top, and avoid jargon without pointers to definitions or docs.
 
 ## Sub-READMEs (e.g. `docs/`, package, or area-specific)
 
