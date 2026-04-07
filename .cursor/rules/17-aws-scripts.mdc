@@ -1,6 +1,6 @@
 ---
 description: AWS script layout, authentication, and project conventions for internal_apis/aws and similar AWS projects
-globs: "**/*.py,**/*.yaml,**/*.yml,**/*.tf,**/Makefile,**/*.mk"
+globs: "**/aws/**/*.py,**/cloudformation/**/*,**/aws/**/Makefile,**/scripts/aws/**/*.py"
 alwaysApply: false
 ---
 

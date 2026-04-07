@@ -27,13 +27,35 @@ Every menu MUST include a **Back** option (returns to previous menu) and an **Ex
 
 ### Group Related Items into Submenus
 
-Always group related menu items into their own submenu rather than listing them flat in a parent menu. The main menu should have **one entry per category** that opens a submenu.
+Group related items into submenus — one entry per category in the main menu. Each submenu handler loops until Back or Exit, returning `"back"` or `"quit"`. Use `Separator` lines to organize sections visually.
 
-- If two or more items share a category (History & deploy, Infrastructure, etc.), they belong in a submenu.
-- Each submenu handler loops until the user picks Back or Exit, returning `"back"` or `"quit"`.
-- Use `Separator` lines inside submenus to organize sections visually.
+### Standard Style
+
+Apply a consistent `Style` across all menus:
 
 ```python
+from questionary import Style
+
+MENU_STYLE = Style([
+    ("qmark", "fg:#00d7ff bold"),
+    ("question", "fg:white bold"),
+    ("pointer", "fg:#00d7ff bold"),
+    ("highlighted", "fg:#00d7ff bold"),
+    ("selected", "fg:#00d7ff"),
+    ("text", "fg:#87d7ff"),
+    ("separator", "fg:#5f5faf italic"),
+    ("instruction", "fg:#585858"),
+])
+```
+
+### Canonical Menu Pattern
+
+Use `questionary.select()` with `Choice`, `Separator`, and the shared `MENU_STYLE`:
+
+```python
+import questionary
+from questionary import Choice, Separator
+
 def data_submenu() -> str:
     """History, recommendations, generate, and org deploy. Returns 'back' or 'quit'."""
     while True:
@@ -43,10 +65,7 @@ def data_submenu() -> str:
                 Separator("── History ───────────────────"),
                 Choice("◆ Import → analyze (full pipeline)", value="history-pipeline"),
                 Separator("── Deploy ───────────────────"),
-                Choice(
-                    "◆ Sync and merge rules across all target repos",
-                    value="sync-merge",
-                ),
+                Choice("◆ Sync and merge rules across all target repos", value="sync-merge"),
                 Separator("─────────────────────────────"),
                 Choice("↩ Back", value="back"),
                 Choice("✕ Exit", value="exit"),
@@ -64,81 +83,12 @@ def data_submenu() -> str:
         console.input("\n  Press Enter to continue...")
 ```
 
-In the parent menu, dispatch and handle the return value:
+In the parent menu, dispatch: `if data_submenu() == "quit": return 0`.
 
-```python
-result = data_submenu()
-if result == "quit":
-    return 0
-```
+### Additional rules
 
-### Standard Style
-
-Apply a consistent `Style` across all menus for a polished look:
-
-```python
-from questionary import Style
-
-MENU_STYLE = Style([
-    ("qmark", "fg:#00d7ff bold"),
-    ("question", "fg:white bold"),
-    ("pointer", "fg:#00d7ff bold"),
-    ("highlighted", "fg:#00d7ff bold"),
-    ("selected", "fg:#00d7ff"),
-    ("text", "fg:#87d7ff"),
-    ("separator", "fg:#5f5faf italic"),
-    ("instruction", "fg:#585858"),
-])
-```
-
-### Color Variation for Large Menus
-
-When a menu has **many options** (roughly 8+), use distinct `Separator` colors per section so users can visually scan groups at a glance. Define a palette of section colors and rotate through them:
-
-```python
-SECTION_COLORS = ["#00d7ff", "#ff8700", "#87d700", "#d75fff", "#ff5f87"]
-
-def colored_separator(label: str, index: int) -> Separator:
-    color = SECTION_COLORS[index % len(SECTION_COLORS)]
-    return Separator(f"── {label} ──")
-```
-
-Combine this with **distinct Unicode prefixes per section** (e.g. `◆` for primary actions, `⚙` for config, `⚠` for destructive) so color is not the only differentiator. For submenus with 10+ items, also consider printing a Rich-styled header via `console.print()` before calling `questionary.select()` to give additional visual context above the prompt.
-
-### Menu Pattern
-
-Use `questionary.select()` with `Choice`, `Separator`, and the shared `MENU_STYLE`:
-
-```python
-import questionary
-from questionary import Choice, Separator
-
-choice = questionary.select(
-    "Main Menu",
-    choices=[
-        Separator("── History & deploy ─────────"),
-        Choice("◆ Open workflows submenu", value="workflows"),
-        Separator("── Danger ───────────────────"),
-        Choice("⚠ Delete everything", value="nuke"),
-        Separator("─────────────────────────────"),
-        Choice("↩ Back", value="back"),
-        Choice("✕ Exit", value="exit"),
-    ],
-    style=MENU_STYLE,
-    instruction="(Ctrl+C to cancel)",
-).ask()
-
-if choice is None or choice == "exit":
-    sys.exit(0)
-```
-
-### Ctrl+C Cancellation
-
-Always pass `instruction="(Ctrl+C to cancel)"` to `questionary.select()`. When Ctrl+C is pressed, `.ask()` returns `None`. Always handle `None` as a clean exit.
-
-### DO NOT use raw ANSI escape codes
-
-Never embed ANSI color codes in `Choice` labels — `questionary` does not render them. Use Unicode symbols (◆, ⚠, ↩, ✕) and `Separator` for visual structure instead.
+- Always pass `instruction="(Ctrl+C to cancel)"` to `questionary.select()`. `.ask()` returns `None` on Ctrl+C — always handle `None` as a clean exit.
+- Never embed raw ANSI escape codes in `Choice` labels — `questionary` does not render them. Use Unicode symbols (◆, ⚠, ↩, ✕) and `Separator` for visual structure.
 
 ## KeyboardInterrupt Handler
 

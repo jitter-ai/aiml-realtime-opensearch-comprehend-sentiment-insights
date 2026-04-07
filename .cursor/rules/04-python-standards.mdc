@@ -11,9 +11,7 @@ alwaysApply: false
 - Prefer f-strings over `.format()` or `%`.
 - UTF-8 for all text I/O.
 - Prefer deterministic behavior and explicit returns; avoid hidden side-effects.
-- **Integration boundaries only:** `try/except` is allowed at **integration boundaries** (filesystem, network, subprocess, external SDKs, I/O). Use chaining (`raise ... from`), structured context, and domain errors per `20-python-errors-and-observability.mdc`. Do **not** wrap large internal logic in catch-all handlers.
-- **Always allowed:** `except KeyboardInterrupt` for clean Ctrl+C exit; `try/except ImportError` for optional dependencies with a clear user-facing message.
-- For other logic: avoid `try/except` unless the user asks for it or the boundary rule above applies.
+- For error handling and `try/except` policy, see `20-python-errors-and-observability.mdc`.
 - Variable names must be descriptive — no single letters except loop counters.
 - Constants in UPPER_SNAKE_CASE.
 

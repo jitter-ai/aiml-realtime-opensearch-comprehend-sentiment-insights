@@ -1,6 +1,6 @@
 ---
-description: Cache external API and SDK reference docs in-repo (Markdown) — prefer local reference over repeated live doc fetches
-globs: "**/*.py,**/*.ts,**/*.js,**/*.tf"
+description: When implementing against external APIs or SDKs, cache reference docs locally as Markdown before writing integration code
+globs:
 alwaysApply: false
 ---
 

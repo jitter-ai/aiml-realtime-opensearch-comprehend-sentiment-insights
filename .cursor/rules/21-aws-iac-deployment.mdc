@@ -1,6 +1,6 @@
 ---
 description: AWS infrastructure-as-code strategy — CloudFormation vs Terraform, Jinja2 templating for complex stacks
-globs: "**/*.yaml,**/*.yml,**/*.tf,**/*.tfvars"
+globs: "**/cloudformation/**/*.yaml,**/cloudformation/**/*.yml,**/*.tf,**/*.tfvars,**/infra/**/*"
 alwaysApply: false
 ---
 

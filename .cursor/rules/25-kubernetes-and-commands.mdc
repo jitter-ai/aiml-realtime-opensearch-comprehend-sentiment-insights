@@ -1,6 +1,6 @@
 ---
 description: Kubernetes debugging (SSH/CLI), copy-paste commands, concise output
-globs: "**/*.yaml,**/*.yml,**/k8s/**/*,**/kubernetes/**/*,Dockerfile*,**/Helm*"
+globs: "**/*.yaml,**/*.yml,Dockerfile*,**/Helm*"
 alwaysApply: false
 ---
 
@@ -9,18 +9,6 @@ alwaysApply: false
 ## Kubernetes debugging
 
 When debugging anything related to Kubernetes, assume I am **SSH'd into the system** (or otherwise on a shell with cluster access). Give me **CLI commands** to diagnose and fix the issue—no steps that assume a local IDE, GUI, or dashboard unless I ask. Prefer `kubectl`, `k9s`, `crictl`, `journalctl`, and other CLI tools so I can run everything from the terminal.
-
-## Command output for copy-paste
-
-When you give me commands (shell, kubectl, scripts, etc.):
-
-- Put each command (or small, logical group) in a **clearly formatted code block** so I can copy it in one go.
-- Prefer one command per block when the output matters, so I can copy, run, and paste results back easily.
-- This keeps the loop fast: I copy your command → run it → get results → share back if needed.
-
-## Conciseness
-
-Always give concise output. Avoid being overly wordy. Skip long bullet lists of "next steps" or "action items"—I know what I need to do.
 
 ## Plans from Claude Code
 

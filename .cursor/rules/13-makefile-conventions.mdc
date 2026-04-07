@@ -39,9 +39,9 @@ All Docker and Compose lifecycle logic must live in a **Python coordinator scrip
 
 - The Makefile delegates to the Python coordinator with a single call per target (e.g., `$(PYTHON) scripts/docker_management/docker_manager.py preflight`).
 - **No** inline `docker` / `docker compose` shell commands in Makefile targets for container lifecycle, health checks, or log retrieval.
-- The Python coordinator handles: daemon checks, container reuse, compose up, health polling, and actionable error output (including recent logs on failure).
+- The Python coordinator handles: daemon checks, container reuse, compose up, readiness checks (e.g. compose ps / running state), and actionable error output (including recent logs on failure).
 - Runtime targets that need containers (e.g., `menu`, `sync`) depend on `docker-preflight` (thin target → ``docker_manager.py preflight``) so readiness is guaranteed before workflows run.
-- Use `docker-up` / `docker-down` for explicit stack lifecycle (not ``redis-*`` names — the coordinator owns Compose, not Redis-specific Make targets).
+- Use `docker-up` / `docker-down` for explicit stack lifecycle; the coordinator owns Compose service names — avoid ad-hoc container targets in the Makefile.
 - Use `python-on-whales.DockerClient` for all Docker API calls; do not shell out to `docker` CLI from Python.
 
 ```makefile

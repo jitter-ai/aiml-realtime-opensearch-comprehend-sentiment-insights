@@ -1,0 +1,29 @@
+---
+description: S3 rules management via AWS MCP server — prefix routing for global vs repo-specific rules
+globs: ["**/*.mdc", "**/rules/**"]
+alwaysApply: false
+---
+
+# S3 Rules Storage Convention
+
+When asked to push, upload, or manage Cursor rules in S3, use the AWS MCP server with the coding-rules-sync-state bucket.
+
+## Prefix routing
+
+| User says | S3 destination |
+|-----------|---------------|
+| "make this global" / "sync to all repos" | `global/{category}/{filename}.mdc` |
+| "this is for {repo}" / "repo-specific" | `repos/{repo-name}/{filename}.mdc` |
+| "promote this" | Copy from `repos/` to `global/`, delete source |
+| "demote this" | Copy from `global/` to `repos/`, delete source |
+
+## Categories
+
+python, terraform, security, github-actions, general, workflow, docker
+
+## Rules
+
+- Always confirm the target prefix before uploading
+- Keep original .mdc filenames
+- After any promote/demote, remind the user to run `make sync` to distribute changes
+- File content must include valid frontmatter (description, globs, alwaysApply)

@@ -26,3 +26,9 @@ The following rules auto-attach via `globs: "**/*.py"` when any `.py` file is op
 8. `10-documentation.mdc` — module docstring, update README if behavior changes
 
 Non-compliance in any of these rules must be fixed **before** the edit is considered complete.
+
+## Output Conventions
+
+- Be concise. Prefer short, accurate responses over verbose ones.
+- When showing CLI commands, always provide copy-paste ready blocks with no placeholders unless a value is genuinely unknown.
+- Prefer direct imperative language in all output.
