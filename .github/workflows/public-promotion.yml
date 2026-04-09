@@ -1,0 +1,226 @@
+# Description: Security scanning and public promotion — deployed to all QuantumPulse42 repos.
+#
+# Combines two concerns into a single deployed workflow:
+#   1. Security scan — Snyk/TruffleHog/Semgrep/Syft via container image (every push, dispatch).
+#   2. Public promotion — scans and mirrors sanitized deploy/ content to jitter-ai (deploy/** changes or dispatch).
+#
+# Placed here by gh-bootstrap and pushed to all QuantumPulse42 repos by
+# scripts/deploy.py.
+#
+# Secrets required:
+#   GITHUB_TOKEN   — automatic (repo-scoped, used for GHCR pull + clone)
+#   SNYK_TOKEN     — org-level secret (Snyk API key)
+#   PUBLIC_ORG_PAT — repo-scoped PAT for jitter-ai (promote job only)
+
+name: Public Promotion
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Force promotion even if scanner reports warnings"
+        required: false
+        type: boolean
+        default: false
+      scan_type:
+        description: "Scan type"
+        required: false
+        default: "full"
+        type: choice
+        options:
+          - full
+          - secrets-only
+          - sbom-only
+
+permissions:
+  contents: read
+
+# ─────────────────────────────────────────────────────────────────────────────
+jobs:
+
+  # ── Gate: decide whether promotion should run ────────────────────────────
+  detect-deploy-changes:
+    name: Detect deploy/ changes
+    runs-on: ubuntu-latest
+    outputs:
+      should_promote: ${{ steps.resolve.outputs.should_promote }}
+    steps:
+      - name: Checkout
+        if: github.event_name == 'push'
+        uses: actions/checkout@v4
+
+      - name: Check paths
+        if: github.event_name == 'push'
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            deploy:
+              - 'deploy/**'
+
+      - name: Resolve promotion eligibility
+        id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "should_promote=${{ steps.filter.outputs.deploy }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "should_promote=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_promote=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ── Security scan (runs on every trigger) ───────────────────────────────
+  security-scan:
+    name: Security Scan
+    runs-on: self-hosted
+
+    permissions:
+      contents: read
+      packages: read
+
+    env:
+      REGISTRY: ghcr.io
+      SCANNER_IMAGE: ghcr.io/quantumpulse42/scanner:latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull scanner image
+        run: docker pull ${{ env.SCANNER_IMAGE }}
+
+      - name: Run security scan
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -e GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} \
+            -e SNYK_TOKEN=${{ secrets.SNYK_TOKEN }} \
+            -e SCAN_TYPE=${{ inputs.scan_type || 'full' }} \
+            -e GITHUB_STEP_SUMMARY=/workspace/step_summary.md \
+            ${{ env.SCANNER_IMAGE }} \
+            python -m scripts.scanner.scan.cli \
+              --repo /workspace \
+              --scan-type ${{ inputs.scan_type || 'full' }} \
+              --continue-on-error \
+              --no-rich
+
+      - name: Upload scan results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scan-results-${{ github.sha }}
+          path: scan_outputs/
+          retention-days: 30
+
+      - name: Post job summary
+        if: always()
+        run: |
+          if [ -f "${{ github.workspace }}/step_summary.md" ]; then
+            cat "${{ github.workspace }}/step_summary.md" >> "$GITHUB_STEP_SUMMARY"
+          elif [ -d scan_outputs ]; then
+            echo "## Security Scan Complete" >> "$GITHUB_STEP_SUMMARY"
+            echo "Results uploaded as artifacts." >> "$GITHUB_STEP_SUMMARY"
+            echo "| File | Size |" >> "$GITHUB_STEP_SUMMARY"
+            echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+            for f in scan_outputs/*; do
+              if [ -f "$f" ]; then
+                size=$(stat -c%s "$f" 2>/dev/null || echo "?")
+                echo "| $(basename "$f") | ${size} bytes |" >> "$GITHUB_STEP_SUMMARY"
+              fi
+            done
+          fi
+
+  # ── Promote deploy/ to jitter-ai (conditional on deploy/** changes) ─────
+  promote:
+    name: Promote deploy/ to jitter-ai
+    needs: [detect-deploy-changes]
+    if: needs.detect-deploy-changes.outputs.should_promote == 'true'
+    runs-on: ubuntu-latest
+
+    env:
+      SOURCE_ORG: QuantumPulse42
+      TARGET_ORG: jitter-ai
+      SYNC_SCANNER_IMAGE: ghcr.io/quantumpulse42/container-images/github-utils:latest
+      STAGING_DIR: /tmp/promote-staging
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Verify deploy/ exists
+        run: |
+          if [ ! -d deploy ]; then
+            echo "::warning::No deploy/ directory found — nothing to promote."
+            echo "SKIP_PROMOTE=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install Python dependencies
+        if: env.SKIP_PROMOTE != 'true'
+        run: pip install pyyaml pathspec requests
+
+      - name: Read deploy/config.yml
+        if: env.SKIP_PROMOTE != 'true'
+        id: config
+        run: |
+          python deploy/public-promotion/scripts/prepare/read_config.py \
+            --config-file deploy/config.yml \
+            --repo-name "${{ github.event.repository.name }}"
+
+      - name: Stage and sanitize deploy/ content
+        if: env.SKIP_PROMOTE != 'true'
+        id: stage
+        run: |
+          python deploy/public-promotion/scripts/prepare/sanitize_stage.py \
+            --source deploy \
+            --staging "${{ env.STAGING_DIR }}" \
+            --gitignore .gitignore \
+            --exclude-patterns "${{ steps.config.outputs.exclude_patterns }}"
+
+      - name: Fail on blocked file patterns
+        if: env.SKIP_PROMOTE != 'true' && steps.stage.outputs.blocked == 'true'
+        run: |
+          echo "::error::Blocked sensitive file patterns detected in deploy/. Aborting promotion."
+          exit 1
+
+      - name: Scan staging for secrets
+        if: env.SKIP_PROMOTE != 'true'
+        id: scan
+        run: |
+          python deploy/public-promotion/scripts/promote/scan_content.py \
+            --staging-dir "${{ env.STAGING_DIR }}" \
+            --scanner-image "${{ env.SYNC_SCANNER_IMAGE }}" \
+            --force "${{ inputs.force || 'false' }}"
+
+      - name: Fail on scan findings
+        if: env.SKIP_PROMOTE != 'true' && steps.scan.outputs.scan_passed == 'false'
+        run: |
+          echo "::error::Scanner found sensitive content that could not be auto-stripped. Review findings above."
+          exit 1
+
+      - name: Mirror to target repo
+        if: env.SKIP_PROMOTE != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PUBLIC_ORG_PAT }}
+        run: |
+          python deploy/public-promotion/scripts/promote/mirror_sync.py \
+            --staging-dir "${{ env.STAGING_DIR }}" \
+            --target-org "${{ env.TARGET_ORG }}" \
+            --target-repo "${{ steps.config.outputs.target_repo }}" \
+            --source-org "${{ env.SOURCE_ORG }}" \
+            --source-repo "${{ github.event.repository.name }}" \
+            --token "${{ secrets.PUBLIC_ORG_PAT }}"
+
+      - name: Clean up staging
+        if: always()
+        run: rm -rf "${{ env.STAGING_DIR }}" || true
