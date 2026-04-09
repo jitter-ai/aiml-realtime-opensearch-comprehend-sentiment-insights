@@ -2,15 +2,23 @@
 #
 # Combines two concerns into a single deployed workflow:
 #   1. Security scan — Snyk/TruffleHog/Semgrep/Syft via container image (every push, dispatch).
-#   2. Public promotion — scans and mirrors sanitized deploy/ content to jitter-ai (deploy/** changes or dispatch).
+#   2. Public promotion — mirrors content to jitter-ai on eligible changes or dispatch.
+#
+# Deploy modes (workflow_dispatch input, defaults to partial on push):
+#   partial — scans and promotes only README.md + diagrams/ from repo root.
+#   full    — scans full repo, promotes sanitized deploy/ content.
 #
 # Placed here by gh-bootstrap and pushed to all QuantumPulse42 repos by
 # scripts/deploy.py.
 #
 # Secrets required:
-#   GITHUB_TOKEN   — automatic (repo-scoped, used for GHCR pull + clone)
-#   SNYK_TOKEN     — org-level secret (Snyk API key)
-#   PUBLIC_ORG_PAT — repo-scoped PAT for jitter-ai (promote job only)
+#   GITHUB_TOKEN       — automatic (repo-scoped, used for GHCR pull + clone)
+#   SNYK_TOKEN         — org-level secret (Snyk API key)
+#   PUBLIC_ORG_PAT     — repo-scoped PAT for jitter-ai (promote job only)
+#   AWS_ACCOUNT_ID     — 12-digit AWS account number (S3 scan staging)
+#   AWS_ACCESS_KEY_ID  — IAM credentials with S3 + CloudFormation permissions
+#   AWS_SECRET_ACCESS_KEY — matching secret key
+#   AWS_REGION         — optional, defaults to us-east-1
 
 name: Public Promotion
 
@@ -19,6 +27,14 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
+      deploy_mode:
+        description: "Promotion scope"
+        required: false
+        default: "partial"
+        type: choice
+        options:
+          - partial
+          - full
       force:
         description: "Force promotion even if scanner reports warnings"
         required: false
@@ -42,10 +58,11 @@ jobs:
 
   # ── Gate: decide whether promotion should run ────────────────────────────
   detect-deploy-changes:
-    name: Detect deploy/ changes
+    name: Detect promotable changes
     runs-on: ubuntu-latest
     outputs:
       should_promote: ${{ steps.resolve.outputs.should_promote }}
+      deploy_mode: ${{ steps.resolve.outputs.deploy_mode }}
     steps:
       - name: Checkout
         if: github.event_name == 'push'
@@ -59,14 +76,24 @@ jobs:
           filters: |
             deploy:
               - 'deploy/**'
+            diagrams:
+              - 'README.md'
+              - 'diagrams/**'
 
       - name: Resolve promotion eligibility
         id: resolve
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            echo "should_promote=${{ steps.filter.outputs.deploy }}" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          DEPLOY_MODE="${{ inputs.deploy_mode || 'partial' }}"
+          echo "deploy_mode=$DEPLOY_MODE" >> "$GITHUB_OUTPUT"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "should_promote=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            if [ "$DEPLOY_MODE" = "full" ]; then
+              echo "should_promote=${{ steps.filter.outputs.deploy }}" >> "$GITHUB_OUTPUT"
+            else
+              echo "should_promote=${{ steps.filter.outputs.diagrams }}" >> "$GITHUB_OUTPUT"
+            fi
           else
             echo "should_promote=false" >> "$GITHUB_OUTPUT"
           fi
@@ -76,6 +103,9 @@ jobs:
     name: Security Scan
     runs-on: self-hosted
 
+    outputs:
+      scan_passed: ${{ steps.run-scan.outputs.scan_passed }}
+
     permissions:
       contents: read
       packages: read
@@ -83,6 +113,7 @@ jobs:
     env:
       REGISTRY: ghcr.io
       SCANNER_IMAGE: ghcr.io/quantumpulse42/scanner:latest
+      DEPLOY_MODE: ${{ inputs.deploy_mode || 'partial' }}
 
     steps:
       - name: Checkout repository
@@ -98,8 +129,23 @@ jobs:
       - name: Pull scanner image
         run: docker pull ${{ env.SCANNER_IMAGE }}
 
-      - name: Run security scan
+      - name: Prepare scan scope
+        id: scope
         run: |
+          if [ "$DEPLOY_MODE" = "partial" ]; then
+            SCAN_DIR="${{ github.workspace }}/_scan_scope"
+            mkdir -p "$SCAN_DIR"
+            [ -f "${{ github.workspace }}/README.md" ] && cp "${{ github.workspace }}/README.md" "$SCAN_DIR/"
+            [ -d "${{ github.workspace }}/diagrams" ] && cp -r "${{ github.workspace }}/diagrams" "$SCAN_DIR/"
+            echo "repo_path=/workspace/_scan_scope" >> "$GITHUB_OUTPUT"
+          else
+            echo "repo_path=/workspace" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run security scan
+        id: run-scan
+        run: |
+          set +e
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -e GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} \
@@ -108,10 +154,18 @@ jobs:
             -e GITHUB_STEP_SUMMARY=/workspace/step_summary.md \
             ${{ env.SCANNER_IMAGE }} \
             python -m scripts.scanner.scan.cli \
-              --repo /workspace \
+              --repo ${{ steps.scope.outputs.repo_path }} \
               --scan-type ${{ inputs.scan_type || 'full' }} \
-              --continue-on-error \
               --no-rich
+          SCAN_EXIT=$?
+          set -e
+          if [ $SCAN_EXIT -eq 0 ]; then
+            echo "scan_passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "scan_passed=false" >> "$GITHUB_OUTPUT"
+            echo "::error::Security scan found issues (exit code $SCAN_EXIT)"
+            exit $SCAN_EXIT
+          fi
 
       - name: Upload scan results
         if: always()
@@ -120,6 +174,91 @@ jobs:
           name: scan-results-${{ github.sha }}
           path: scan_outputs/
           retention-days: 30
+
+      - name: Ensure S3 scan bucket exists
+        if: always()
+        env:
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+        run: |
+          STACK_NAME="quantumpulse42-scan-results"
+          BUCKET_NAME="quantumpulse42-scan-results-${AWS_ACCOUNT_ID}"
+
+          if aws cloudformation describe-stacks \
+               --stack-name "$STACK_NAME" >/dev/null 2>&1; then
+            echo "Stack $STACK_NAME already exists, skipping creation."
+          else
+            echo "Creating stack $STACK_NAME..."
+            cat > /tmp/s3-scan-bucket.yml <<'CFNEOF'
+          AWSTemplateFormatVersion: '2010-09-09'
+          Description: S3 bucket for staging security scan results
+
+          Parameters:
+            AccountId:
+              Type: String
+              Description: AWS Account ID (used in bucket name)
+
+          Resources:
+            ScanResultsBucket:
+              Type: AWS::S3::Bucket
+              Properties:
+                BucketName: !Sub "quantumpulse42-scan-results-${AccountId}"
+                VersioningConfiguration:
+                  Status: Enabled
+                BucketEncryption:
+                  ServerSideEncryptionConfiguration:
+                    - ServerSideEncryptionByDefault:
+                        SSEAlgorithm: AES256
+                LifecycleConfiguration:
+                  Rules:
+                    - Id: ExpireOldResults
+                      Status: Enabled
+                      ExpirationInDays: 90
+                PublicAccessBlockConfiguration:
+                  BlockPublicAcls: true
+                  BlockPublicPolicy: true
+                  IgnorePublicAcls: true
+                  RestrictPublicBuckets: true
+                Tags:
+                  - Key: Project
+                    Value: QuantumPulse42
+                  - Key: Purpose
+                    Value: scan-results-staging
+
+          Outputs:
+            BucketName:
+              Value: !Ref ScanResultsBucket
+            BucketArn:
+              Value: !GetAtt ScanResultsBucket.Arn
+          CFNEOF
+            aws cloudformation deploy \
+              --template-file /tmp/s3-scan-bucket.yml \
+              --stack-name "$STACK_NAME" \
+              --parameter-overrides AccountId="$AWS_ACCOUNT_ID" \
+              --no-fail-on-empty-changeset
+          fi
+
+          echo "SCAN_BUCKET=$BUCKET_NAME" >> "$GITHUB_ENV"
+
+      - name: Stage scan results to S3
+        if: always()
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+        run: |
+          if [ -d scan_outputs ] && [ "$(ls -A scan_outputs)" ]; then
+            REPO_NAME="${{ github.event.repository.name }}"
+            RUN_ID="${{ github.run_id }}"
+            S3_PATH="s3://${SCAN_BUCKET}/${REPO_NAME}/${RUN_ID}/scan-results/"
+
+            echo "Uploading scan results to ${S3_PATH}"
+            aws s3 cp scan_outputs/ "${S3_PATH}" --recursive
+          else
+            echo "No scan outputs found, skipping S3 upload."
+          fi
 
       - name: Post job summary
         if: always()
@@ -139,11 +278,13 @@ jobs:
             done
           fi
 
-  # ── Promote deploy/ to jitter-ai (conditional on deploy/** changes) ─────
+  # ── Promote to jitter-ai (gated on scan + change detection) ─────────────
   promote:
-    name: Promote deploy/ to jitter-ai
-    needs: [detect-deploy-changes]
-    if: needs.detect-deploy-changes.outputs.should_promote == 'true'
+    name: Promote to jitter-ai
+    needs: [detect-deploy-changes, security-scan]
+    if: |
+      needs.detect-deploy-changes.outputs.should_promote == 'true' &&
+      needs.security-scan.outputs.scan_passed == 'true'
     runs-on: ubuntu-latest
 
     env:
@@ -151,6 +292,7 @@ jobs:
       TARGET_ORG: jitter-ai
       SYNC_SCANNER_IMAGE: ghcr.io/quantumpulse42/container-images/github-utils:latest
       STAGING_DIR: /tmp/promote-staging
+      DEPLOY_MODE: ${{ needs.detect-deploy-changes.outputs.deploy_mode }}
 
     steps:
       - name: Checkout source
@@ -158,7 +300,27 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Verify deploy/ exists
+      # ── Partial mode: stage README.md + diagrams/ from repo root ────────
+      - name: Verify promotable content exists (partial)
+        if: env.DEPLOY_MODE == 'partial'
+        run: |
+          if [ ! -f README.md ] && [ ! -d diagrams ]; then
+            echo "::warning::No README.md or diagrams/ found — nothing to promote."
+            echo "SKIP_PROMOTE=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Stage partial content
+        if: env.DEPLOY_MODE == 'partial' && env.SKIP_PROMOTE != 'true'
+        run: |
+          mkdir -p "${{ env.STAGING_DIR }}"
+          [ -f README.md ] && cp README.md "${{ env.STAGING_DIR }}/"
+          [ -d diagrams ] && cp -r diagrams "${{ env.STAGING_DIR }}/"
+          echo "Staged partial content (README.md + diagrams/):"
+          find "${{ env.STAGING_DIR }}" -type f | head -50
+
+      # ── Full mode: stage from deploy/ using existing pipeline ───────────
+      - name: Verify deploy/ exists (full)
+        if: env.DEPLOY_MODE == 'full'
         run: |
           if [ ! -d deploy ]; then
             echo "::warning::No deploy/ directory found — nothing to promote."
@@ -166,11 +328,11 @@ jobs:
           fi
 
       - name: Install Python dependencies
-        if: env.SKIP_PROMOTE != 'true'
+        if: env.DEPLOY_MODE == 'full' && env.SKIP_PROMOTE != 'true'
         run: pip install pyyaml pathspec requests
 
       - name: Read deploy/config.yml
-        if: env.SKIP_PROMOTE != 'true'
+        if: env.DEPLOY_MODE == 'full' && env.SKIP_PROMOTE != 'true'
         id: config
         run: |
           python deploy/public-promotion/scripts/prepare/read_config.py \
@@ -178,7 +340,7 @@ jobs:
             --repo-name "${{ github.event.repository.name }}"
 
       - name: Stage and sanitize deploy/ content
-        if: env.SKIP_PROMOTE != 'true'
+        if: env.DEPLOY_MODE == 'full' && env.SKIP_PROMOTE != 'true'
         id: stage
         run: |
           python deploy/public-promotion/scripts/prepare/sanitize_stage.py \
@@ -188,13 +350,13 @@ jobs:
             --exclude-patterns "${{ steps.config.outputs.exclude_patterns }}"
 
       - name: Fail on blocked file patterns
-        if: env.SKIP_PROMOTE != 'true' && steps.stage.outputs.blocked == 'true'
+        if: env.DEPLOY_MODE == 'full' && env.SKIP_PROMOTE != 'true' && steps.stage.outputs.blocked == 'true'
         run: |
           echo "::error::Blocked sensitive file patterns detected in deploy/. Aborting promotion."
           exit 1
 
       - name: Scan staging for secrets
-        if: env.SKIP_PROMOTE != 'true'
+        if: env.DEPLOY_MODE == 'full' && env.SKIP_PROMOTE != 'true'
         id: scan
         run: |
           python deploy/public-promotion/scripts/promote/scan_content.py \
@@ -203,10 +365,60 @@ jobs:
             --force "${{ inputs.force || 'false' }}"
 
       - name: Fail on scan findings
-        if: env.SKIP_PROMOTE != 'true' && steps.scan.outputs.scan_passed == 'false'
+        if: env.DEPLOY_MODE == 'full' && env.SKIP_PROMOTE != 'true' && steps.scan.outputs.scan_passed == 'false'
         run: |
           echo "::error::Scanner found sensitive content that could not be auto-stripped. Review findings above."
           exit 1
+
+      # ── Stage promotion content + metadata to S3 ────────────────────────
+      - name: Stage promotion content to S3
+        if: env.SKIP_PROMOTE != 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+        run: |
+          REPO_NAME="${{ github.event.repository.name }}"
+          RUN_ID="${{ github.run_id }}"
+          DEPLOY_MODE="${{ env.DEPLOY_MODE }}"
+          BUCKET="quantumpulse42-scan-results-${AWS_ACCOUNT_ID}"
+          S3_PATH="s3://${BUCKET}/${REPO_NAME}/${RUN_ID}/staged-content/"
+
+          echo "Staging ${DEPLOY_MODE} content to ${S3_PATH}"
+          aws s3 cp "${{ env.STAGING_DIR }}/" "${S3_PATH}" --recursive
+
+          cat > /tmp/scan-metadata.json <<EOF
+          {
+            "repo": "${REPO_NAME}",
+            "run_id": "${RUN_ID}",
+            "sha": "${{ github.sha }}",
+            "ref": "${{ github.ref_name }}",
+            "actor": "${{ github.actor }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "scan_type": "${{ inputs.scan_type || 'full' }}",
+            "deploy_mode": "${DEPLOY_MODE}",
+            "scan_passed": true
+          }
+          EOF
+          aws s3 cp /tmp/scan-metadata.json "s3://${BUCKET}/${REPO_NAME}/${RUN_ID}/scan-metadata.json"
+
+          echo "S3_STAGED_PATH=${S3_PATH}" >> "$GITHUB_ENV"
+
+      # ── Shared: mirror staging to target repo ──────────────────────────
+      - name: Resolve target repo name
+        if: env.SKIP_PROMOTE != 'true'
+        id: target
+        run: |
+          if [ "$DEPLOY_MODE" = "full" ] && [ -n "${{ steps.config.outputs.target_repo }}" ]; then
+            echo "repo=${{ steps.config.outputs.target_repo }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "repo=${{ github.event.repository.name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Python dependencies (partial)
+        if: env.DEPLOY_MODE == 'partial' && env.SKIP_PROMOTE != 'true'
+        run: pip install requests
 
       - name: Mirror to target repo
         if: env.SKIP_PROMOTE != 'true'
@@ -216,7 +428,7 @@ jobs:
           python deploy/public-promotion/scripts/promote/mirror_sync.py \
             --staging-dir "${{ env.STAGING_DIR }}" \
             --target-org "${{ env.TARGET_ORG }}" \
-            --target-repo "${{ steps.config.outputs.target_repo }}" \
+            --target-repo "${{ steps.target.outputs.repo }}" \
             --source-org "${{ env.SOURCE_ORG }}" \
             --source-repo "${{ github.event.repository.name }}" \
             --token "${{ secrets.PUBLIC_ORG_PAT }}"
